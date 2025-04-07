@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
-	"io"
 	"os"
 	"os/exec"
 	"time"
@@ -49,6 +47,8 @@ func (w *Watch) runCommand(cmd *cobra.Command, args []string) error {
 
 	stderr := cmd.ErrOrStderr()
 	stdout := cmd.OutOrStdout()
+	outStreamer := NewStreamer(color.FgWhite)
+	errStreamer := NewStreamer(color.FgRed)
 	for {
 		if w.times == 0 {
 			break // Stop after number of repetitions
@@ -62,16 +62,8 @@ func (w *Watch) runCommand(cmd *cobra.Command, args []string) error {
 		stdoutPipe, _ := command.StdoutPipe()
 		stderrPipe, _ := command.StderrPipe()
 
-		chOut := make(chan bool)
-		go func() {
-			streamOutput(stdoutPipe, stdout, color.FgWhite)
-			close(chOut)
-		}()
-		chErr := make(chan bool)
-		go func() {
-			streamOutput(stderrPipe, stderr, color.FgRed)
-			close(chErr)
-		}()
+		outStreamer.startPumping(stdoutPipe, stdout)
+		errStreamer.startPumping(stderrPipe, stderr)
 
 		if w.timestamp {
 			currentTime := time.Now()
@@ -94,9 +86,8 @@ func (w *Watch) runCommand(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// Wait for both streamed outputs are written
-		<-chOut
-		<-chErr
+		outStreamer.waitDone()
+		errStreamer.waitDone()
 
 		clrHead.Fprintf(stdout, "exit=%d\n", code)
 
@@ -133,17 +124,6 @@ func (w *Watch) validateArgs(cmd *cobra.Command, args []string) error {
 		return errors.New("no command provided")
 	}
 	return nil
-}
-
-func streamOutput(pipe io.ReadCloser, output io.Writer, textColor color.Attribute) {
-	scanner := bufio.NewScanner(pipe)
-	c := color.New(textColor)
-
-	for scanner.Scan() {
-		if _, err := c.Fprintln(output, scanner.Text()); err != nil {
-			panic(err)
-		}
-	}
 }
 
 func main() {
