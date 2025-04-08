@@ -4,6 +4,7 @@ go 1.24.1
 
 require (
 	github.com/fatih/color v1.18.0
+	github.com/sergi/go-diff v1.3.1
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/term v0.31.0

@@ -12,9 +12,6 @@ import (
 
 var (
 	clrHead = color.New(color.FgBlue)
-	clrOut  = color.New(color.FgWhite)
-	clrErr  = color.New(color.FgRed)
-	clrDiff = color.New(color.FgRed)
 )
 
 type Watch struct {
@@ -47,8 +44,7 @@ func (w *Watch) runCommand(cmd *cobra.Command, args []string) error {
 
 	stderr := cmd.ErrOrStderr()
 	stdout := cmd.OutOrStdout()
-	outStreamer := NewStreamer(color.FgWhite)
-	errStreamer := NewStreamer(color.FgRed)
+	streamer := NewStreamer()
 	for {
 		if w.times == 0 {
 			break // Stop after number of repetitions
@@ -62,8 +58,7 @@ func (w *Watch) runCommand(cmd *cobra.Command, args []string) error {
 		stdoutPipe, _ := command.StdoutPipe()
 		stderrPipe, _ := command.StderrPipe()
 
-		outStreamer.startPumping(stdoutPipe, stdout)
-		errStreamer.startPumping(stderrPipe, stderr)
+		streamer.pumpOuts(stdoutPipe, stderrPipe)
 
 		if w.timestamp {
 			currentTime := time.Now()
@@ -86,10 +81,9 @@ func (w *Watch) runCommand(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		outStreamer.waitDone()
-		errStreamer.waitDone()
+		streamer.dump(stdout)
 
-		clrHead.Fprintf(stdout, "exit=%d\n", code)
+		clrHead.Fprintf(stdout, ":: exit=%d\n", code)
 
 		// Do not sleep after last counted repetition
 		if w.times != 0 {

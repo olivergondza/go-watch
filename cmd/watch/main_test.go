@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"strings"
 	"testing"
 )
 
@@ -66,49 +67,58 @@ func testErrors(t *testing.T, scenario TestError) {
 }
 
 type TestRun struct {
-	args []string
-	out  string
-	err  string
+	args      []string
+	assertOut func(t *testing.T, out string)
 }
 
 var testRunScenarios = []TestRun{
 	// Print nothing on zero repetitions
 	{
 		[]string{"--repeat", "0", "--", "sh", "-c", "echo FLARE"},
-		"",
-		"",
+		func(t *testing.T, out string) {},
 	},
 	{
 		[]string{"--repeat", "1", NoTime, "--", "sh", "-c", "echo FLARE"},
-		"::\nFLARE\nexit=0\n",
-		"",
+		func(t *testing.T, out string) {
+			assert.Equal(t, "::\nFLARE\n:: exit=0\n", out)
+		},
 	},
 	{
 		[]string{"--repeat", "2", NoTime, "--", "sh", "-c", "echo FLARE"},
-		"::\nFLARE\nexit=0\n::\nFLARE\nexit=0\n",
-		"",
+		func(t *testing.T, out string) {
+			assert.Equal(t, "::\nFLARE\n:: exit=0\n::\nFLARE\n:: exit=0\n", out)
+		},
 	},
 	// non-zero exit; streams interleaved
 	{
 		[]string{"--repeat", "2", NoTime, "--", "sh", "-c", "echo FLARE; echo >&2 SIGNAL; exit 42"},
-		"::\nFLARE\nexit=42\n::\nFLARE\nexit=42\n",
-		"SIGNAL\nSIGNAL\n",
+		func(t *testing.T, out string) {
+			assert.Equal(t, 2, strings.Count(out, "::\n"))
+			assert.Equal(t, 2, strings.Count(out, "\nFLARE\n"))
+			assert.Equal(t, 2, strings.Count(out, "\nSIGNAL\n"))
+			assert.Equal(t, 2, strings.Count(out, ":: exit=42\n"))
+			assert.True(t, strings.HasPrefix(out, "::\n"))
+			assert.True(t, strings.HasSuffix(out, ":: exit=42\n"))
+		},
 	},
 	// Color
 	{
-		[]string{Once, NoTime, "--color", "false", "--", "sh", "-c", "echo FLARE; echo >&2 SIGNAL"},
-		"::\nFLARE\nexit=0\n",
-		"SIGNAL\n",
+		[]string{Once, NoTime, "--color", "false", "--", "sh", "-c", "echo FLARE"},
+		func(t *testing.T, out string) {
+			assert.Equal(t, "::\nFLARE\n:: exit=0\n", out)
+		},
 	},
 	{
-		[]string{Once, NoTime, "--color", "true", "--", "sh", "-c", "echo FLARE; echo >&2 SIGNAL"},
-		"\x1b[34m::\x1b[0m\n\x1b[37mFLARE\x1b[0m\n\x1b[34mexit=0\n\x1b[0m",
-		"\x1b[31mSIGNAL\x1b[0m\n",
+		[]string{Once, NoTime, "--color", "true", "--", "sh", "-c", "echo FLARE"},
+		func(t *testing.T, out string) {
+			assert.Equal(t, "\x1b[34m::\x1b[0m\nFLARE\n\x1b[34m:: exit=0\n\x1b[0m", out)
+		},
 	},
 	{
-		[]string{Once, NoTime, "--color", "auto", "--", "sh", "-c", "echo FLARE; echo >&2 SIGNAL"},
-		"::\nFLARE\nexit=0\n",
-		"SIGNAL\n",
+		[]string{Once, NoTime, "--color", "auto", "--", "sh", "-c", "echo FLARE"},
+		func(t *testing.T, out string) {
+			assert.Equal(t, "::\nFLARE\n:: exit=0\n", out)
+		},
 	},
 }
 
@@ -126,12 +136,9 @@ func testSingle(t *testing.T, scenario TestRun) {
 	cmd.SetArgs(scenario.args)
 	outBuf := new(bytes.Buffer)
 	cmd.SetOut(outBuf)
-	errBuf := new(bytes.Buffer)
-	cmd.SetErr(errBuf)
 
 	err := cmd.Execute()
 	require.Nil(t, err, "%v", err)
 
-	assert.Equal(t, scenario.err, errBuf.String())
-	assert.Equal(t, scenario.out, outBuf.String())
+	scenario.assertOut(t, outBuf.String())
 }
