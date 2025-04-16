@@ -33,6 +33,8 @@ func (w *Watch) newRootCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&w.color, "color", "c", "auto", "Colorize the output [true, false, auto]")
 	cmd.Flags().IntVarP(&w.times, "repeat", "r", -1, "Repeat invocation exact number of times")
 
+	cmd.Flags().SetInterspersed(false)
+
 	return cmd
 }
 

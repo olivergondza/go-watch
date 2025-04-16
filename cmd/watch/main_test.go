@@ -41,6 +41,11 @@ var testErrorScenarios = []TestError{
 		[]string{"--color="},
 		"unknown --color value: ",
 	},
+	// Verifies that `--` terminates watch option parsing, and expects command to follow
+	{
+		[]string{"--", "--time=false"},
+		"exec: \"--time=false\": executable file not found in $PATH",
+	},
 }
 
 func TestErrors(t *testing.T) {
@@ -74,24 +79,31 @@ type TestRun struct {
 var testRunScenarios = []TestRun{
 	// Print nothing on zero repetitions
 	{
-		[]string{"--repeat", "0", "--", "sh", "-c", "echo FLARE"},
+		[]string{"--repeat", "0", "sh", "-c", "echo FLARE"},
 		func(t *testing.T, out string) {},
 	},
 	{
-		[]string{"--repeat", "1", NoTime, "--", "sh", "-c", "echo FLARE"},
+		[]string{"--repeat", "1", NoTime, "sh", "-c", "echo FLARE"},
 		func(t *testing.T, out string) {
 			assert.Equal(t, "::\nFLARE\n:: exit=0\n", out)
 		},
 	},
 	{
-		[]string{"--repeat", "2", NoTime, "--", "sh", "-c", "echo FLARE"},
+		[]string{"--repeat", "2", NoTime, "sh", "-c", "echo FLARE"},
 		func(t *testing.T, out string) {
 			assert.Equal(t, "::\nFLARE\n:: exit=0\n::\nFLARE\n:: exit=0\n", out)
 		},
 	},
+	// Verify valid watch options passed after `--` are ignored
+	{
+		[]string{"--repeat", "1", NoTime, "--", "true", "--repeat=7"},
+		func(t *testing.T, out string) {
+			assert.Equal(t, "::\n:: exit=0\n", out)
+		},
+	},
 	// non-zero exit; streams interleaved
 	{
-		[]string{"--repeat", "2", NoTime, "--", "sh", "-c", "echo FLARE; echo >&2 SIGNAL; exit 42"},
+		[]string{"--repeat", "2", NoTime, "sh", "-c", "echo FLARE; echo >&2 SIGNAL; exit 42"},
 		func(t *testing.T, out string) {
 			assert.Equal(t, 2, strings.Count(out, "::\n"))
 			assert.Equal(t, 2, strings.Count(out, "\nFLARE\n"))
@@ -103,19 +115,19 @@ var testRunScenarios = []TestRun{
 	},
 	// Color
 	{
-		[]string{Once, NoTime, "--color", "false", "--", "sh", "-c", "echo FLARE"},
+		[]string{Once, NoTime, "--color", "false", "sh", "-c", "echo FLARE"},
 		func(t *testing.T, out string) {
 			assert.Equal(t, "::\nFLARE\n:: exit=0\n", out)
 		},
 	},
 	{
-		[]string{Once, NoTime, "--color", "true", "--", "sh", "-c", "echo FLARE"},
+		[]string{Once, NoTime, "--color", "true", "sh", "-c", "echo FLARE"},
 		func(t *testing.T, out string) {
 			assert.Equal(t, "\x1b[34m::\x1b[0m\nFLARE\n\x1b[34m:: exit=0\n\x1b[0m", out)
 		},
 	},
 	{
-		[]string{Once, NoTime, "--color", "auto", "--", "sh", "-c", "echo FLARE"},
+		[]string{Once, NoTime, "--color", "auto", "sh", "-c", "echo FLARE"},
 		func(t *testing.T, out string) {
 			assert.Equal(t, "::\nFLARE\n:: exit=0\n", out)
 		},
